@@ -1,5 +1,15 @@
 # Tegra LCD backend — source and direct-present probes
 
+> **Development status: not suitable for everyday use.**
+> This project is a research prototype, not a practical SteamOS gaming system at
+> this stage. Serious performance, stability and game compatibility limitations
+> remain. The sources are published for research and development.
+>
+> **Текущее состояние: проект непригоден для повседневного использования.**
+> Это исследовательский прототип. Существенные ограничения производительности,
+> стабильности и совместимости с играми делают практическое использование системы
+> крайне затруднительным. Исходники опубликованы для разработки и исследований.
+
 Open source material for direct Tegra X1 LCD presentation used by the SteamOS-on-Switch project.
 Credits: theofficialgman and contributors (Tegra DC/GOB reference), Switchroot/CTCaer and
 the kernel/boot community (Linux platform), NVIDIA UAPI authors, Valve/Gamescope.
