@@ -1,0 +1,83 @@
+#version 450
+/* SPDX-License-Identifier: GPL-2.0-or-later
+ *
+ * Adapted from theofficialgman/vk_layer_tegra_dc_present shaders/gob_swizzle.comp
+ * pin ecfb76aadbdc93cd7008e77bec944724cd70c364 (GPL-2.0-or-later).
+ *
+ * The GOB swizzle (gobSwizzle) and the block-linear addressing formula are
+ * preserved verbatim from the reference. Only additions:
+ *   - push constant grows to 8 uints (physical/logical dims + orientation),
+ *   - a rotation mapping at the conversion boundary maps the physical output
+ *     pixel back to a logical source pixel, so the app can render a landscape
+ *     logical image (1280x720) while the panel is portrait (720x1280).
+ * See third_party/PROVENANCE.md for full attribution.
+ */
+layout(local_size_x = 16, local_size_y = 8) in;
+
+layout(binding = 0, rgba8) uniform readonly image2D srcImage;
+layout(binding = 1, std430) buffer DstBuffer {
+    uint data[];
+} dst;
+
+layout(push_constant) uniform PC {
+    uint width;            /* physical (output) width  */
+    uint height;           /* physical (output) height */
+    uint blockHeightLog2;  /* GOB block height log2 (4 = 4 matching FLIP4) */
+    uint gobsWide;         /* ceil(physicalWidth * 4 / 64) */
+    uint orientation;      /* 0 / 90 / 180 / 270 (degrees clockwise) */
+    uint logW;             /* logical (source) width  */
+    uint logH;             /* logical (source) height */
+    uint pad;
+} pc;
+
+/* x: byte offset within one GOB row (0-63), y: row within the GOB (0-7).
+ * Returns the swizzled byte offset within the 512-byte GOB (0-511).
+ * VERBATIM from the reference shader. */
+uint gobSwizzle(uint x, uint y) {
+    uint x0 = x & 1u, x1 = (x >> 1) & 1u, x2 = (x >> 2) & 1u;
+    uint x3 = (x >> 3) & 1u, x4 = (x >> 4) & 1u, x5 = (x >> 5) & 1u;
+    uint y0 = y & 1u, y1 = (y >> 1) & 1u, y2 = (y >> 2) & 1u;
+    return (x5 << 8) | (y2 << 7) | (y1 << 6) | (x4 << 5) | (y0 << 4) | (x3 << 3) | (x2 << 2) | (x1 << 1) | x0;
+}
+
+void main() {
+    uint x = gl_GlobalInvocationID.x; /* physical x */
+    uint y = gl_GlobalInvocationID.y; /* physical y */
+    if (x >= pc.width || y >= pc.height) return;
+
+    /* Rotation at the conversion boundary: physical -> logical (inverse map).
+     * Must stay consistent with tp_orient_map_logical() in src/gob_math.c. */
+    uint sx, sy;
+    if (pc.orientation == 90u)       { sx = y;               sy = pc.logH - 1u - x; }
+    else if (pc.orientation == 180u) {
+        sx = pc.logW - 1u - x; sy = pc.logH - 1u - y;
+        sx = pc.logW - 1u - sx; /* M7g sx1: source X reflection (final: sx=x, sy=logH-1-y) */
+    }
+    else if (pc.orientation == 270u) { sx = pc.logW - 1u - y; sy = x; }
+    else                             { sx = x;               sy = y; }
+    sx = min(sx, pc.logW - 1u);
+    sy = min(sy, pc.logH - 1u);
+
+    vec4 color = imageLoad(srcImage, ivec2(sx, sy));
+    /* Target format is B8G8R8A8_UNORM (byte order B,G,R,A in memory);
+     * packUnorm4x8 packs its argument's components as bytes 0..3, so feed it
+     * (B,G,R,A) to get the right byte order. VERBATIM from the reference. */
+    uint packed = packUnorm4x8(vec4(color.b, color.g, color.r, color.a));
+
+    uint gobCol = x / 16u;
+    uint gobsPerBlock = 1u << pc.blockHeightLog2;
+    uint rowsPerBlock = 8u << pc.blockHeightLog2;
+    uint blockIdx = y / rowsPerBlock;
+    uint rowInBlock = y % rowsPerBlock;
+    uint gobRowInBlock = rowInBlock / 8u;
+    uint rowInGob = rowInBlock % 8u;
+
+    /* GOBs within a block are laid out COLUMN-major (verified upstream). */
+    uint gobIndexInBlock = gobCol * gobsPerBlock + gobRowInBlock;
+    uint bytesPerBlock = pc.gobsWide * gobsPerBlock * 512u;
+    uint gobBase = blockIdx * bytesPerBlock + gobIndexInBlock * 512u;
+
+    uint byteXBase = (x % 16u) * 4u;
+    uint finalOffset = gobBase + gobSwizzle(byteXBase, rowInGob);
+    dst.data[finalOffset / 4u] = packed;
+}

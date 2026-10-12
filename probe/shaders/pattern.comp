@@ -1,0 +1,82 @@
+#version 450
+/* SPDX-License-Identifier: GPL-2.0-or-later
+ *
+ * Test-pattern generator for tegra-present-probe.
+ * Original work (C) 2026 native-gamescope project contributors.
+ * GPU-only: writes the logical storage image; there is no CPU framebuffer
+ * copy and no transfer-stage readback.
+ *
+ * Corners and edge strips make the physical orientation unambiguous:
+ *   logical top edge  = yellow, logical left edge = cyan;
+ *   logical TL=red, TR=green, BL=blue, BR=white;
+ *   a magenta marker moves with the frame index along x (per-frame change).
+ *
+ * Two animation modes (push-constant `pad`):
+ *   pad == 0 (default write-once path): UNCHANGED accepted appearance -- a
+ *     per-frame base tint plus a 4-position stepped marker;
+ *   pad != 0 (reuse path, M3i): the base tint is HELD CONSTANT (no whole-frame
+ *     flashing) and only the magenta marker sweeps smoothly across x with the
+ *     frame sequence. Corners/edges/crosshair (diagnostic orientation aids) are
+ *     identical in both modes.
+ */
+layout(local_size_x = 16, local_size_y = 8) in;
+
+layout(binding = 0, rgba8) uniform writeonly image2D dstImage;
+
+layout(push_constant) uniform PC {
+    uint width;
+    uint height;
+    uint frame;
+    uint pad;   /* 0 = default write-once; !=0 = reuse/smooth animation */
+} pc;
+
+void main() {
+    uint x = gl_GlobalInvocationID.x;
+    uint y = gl_GlobalInvocationID.y;
+    if (x >= pc.width || y >= pc.height) return;
+
+    uint W = pc.width, H = pc.height, f = pc.frame;
+
+    /* Base tint. Default mode steps per frame (accepted appearance); reuse mode
+     * holds a constant colour so recycling does not flash the whole frame. */
+    vec4 c;
+    if (pc.pad != 0u)
+        c = vec4(0.20, 0.20, 0.22, 1.0);
+    else {
+        float t = fract(0.137 * float(f) + 0.05);
+        c = vec4(t, 1.0 - t, 0.5 + 0.5 * float(f & 1u), 1.0);
+    }
+
+    /* Orientation strips (logical frame edges). */
+    if (y < 8u) c = vec4(1.0, 1.0, 0.0, 1.0); /* top  = yellow */
+    if (x < 8u) c = vec4(0.0, 1.0, 1.0, 1.0); /* left = cyan   */
+
+    /* Corner squares (64px): TL red, TR green, BL blue, BR white. */
+    uint s = min(64u, min(W, H) / 2u);
+    if (x < s && y < s)          c = vec4(1.0, 0.0, 0.0, 1.0);
+    if (x >= W - s && y < s)     c = vec4(0.0, 1.0, 0.0, 1.0);
+    if (x < s && y >= H - s)     c = vec4(0.0, 0.0, 1.0, 1.0);
+    if (x >= W - s && y >= H - s) c = vec4(1.0, 1.0, 1.0, 1.0);
+
+    /* Moving 32px magenta marker.
+     *  - default: position encodes (f mod 4) in four discrete steps;
+     *  - reuse:   position sweeps smoothly across x with the frame sequence
+     *             (period ~59 frames), clamped inside [0, W-marker]. */
+    uint m = 32u;
+    uint my = (H / 2u) - (m / 2u);
+    uint mx;
+    if (pc.pad != 0u) {
+        float fx = fract(float(f) * 0.017 + 0.02);
+        uint span = (W > m) ? (W - m) : 0u;
+        mx = uint(fx * float(span));
+    } else {
+        mx = (f % 4u) * (W / 4u) + 8u;
+    }
+    if (x >= mx && x < mx + m && y >= my && y < my + m)
+        c = vec4(1.0, 0.0, 1.0, 1.0);
+
+    /* Dark centre crosshair: proves the rotate mapping, not just corners. */
+    if (y == H / 2u || x == W / 2u) c = mix(c, vec4(0.0, 0.0, 0.0, 1.0), 0.5);
+
+    imageStore(dstImage, ivec2(x, y), c);
+}

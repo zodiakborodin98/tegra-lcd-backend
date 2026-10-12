@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "reference": "gamescope-tegra accepted-source reconstruction",
+  "standalone_library": false,
+  "reference_files": {
+    "tegra_l4t_presenter.cpp": "94faa327b18d7b2a6b7928df871cb9d5edcd0c8271d135aaeecad60d5dc023fd",
+    "tegra_l4t_presenter.h": "a2a7c32c06509b6dc92978b05158a1d57010ddf9ece2a79fca8069d9bbe9db87",
+    "tegra_l4t_first_frame.cpp": "64c12b85499ca49efb8a49db0e3433fa709f188dcee7ff748afe9925cdbfa446",
+    "tegra_l4t_first_frame.h": "0eeb014184550081284dbf1dc74b94f9a7cb5fee510cedea6d2a50eb478c87f8",
+    "gob_swizzle_sx1.comp": "393360ed13071b443f640774455e75ea7f5684a593172bd33369edfdc098eba6",
+    "gob_swizzle_spv.h": "1104ff4d565311f1ead2d972765261c5f38cb7568c0ca8b9f3f0f4b643c89732",
+    "tegra_dc_ext.h": "7b2e16e36d8ecf0a7d24a90a73dfe9c09efdd2b0655c6c078070a06bd9e5307e",
+    "nvhost_ioctl.h": "aa17d243fff5ea38e81cc0a2ccc84796c2d1e5fb8b85041d69231d119cda51a4",
+    "uapi/linux/types.h": "25734d06f9985ac1fa8f292e91a173d0d7c868485dd3f299f23d28b1348109b3"
+  },
+  "gman_commit": "ecfb76aadbdc93cd7008e77bec944724cd70c364",
+  "kernel_reference_commit": "7d95822acda1f6dab3f3d1d099b43ff9e0d0e626"
+}
