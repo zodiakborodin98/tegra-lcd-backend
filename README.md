@@ -1,5 +1,11 @@
 # Tegra LCD backend — source and direct-present probes
 
+**13 October 2026 system update:** the sibling graphics stack now runs
+[Steam UI on Zink/NVIDIA](https://github.com/zodiakborodin98/gamescope-tegra/blob/main/docs/ZINK-STEAM-UI.md)
+at 854x480. LCD source/probe implementation in this repository is unchanged.
+That client-side progress does not qualify a new standalone LCD library or
+repair historical game consumer/teardown faults.
+
 > **Development status: not suitable for everyday use.**
 > This project is a research prototype, not a practical SteamOS gaming system at
 > this stage. Serious performance, stability and game compatibility limitations
